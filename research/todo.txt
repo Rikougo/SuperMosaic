@@ -1,0 +1,8 @@
+- Base de donnée
+- Pretraitement sur les données
+    - Couleur moyenne
+    - Variance (ecart type)
+    - Thumbnail image
+- Utilisation des données pour la comparaison
+- Méthode de traitement
+
