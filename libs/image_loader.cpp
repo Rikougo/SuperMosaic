@@ -1,4 +1,5 @@
 #include <image_loader.h>
+#include <string>
 
 std::ostream &operator<<(std::ostream &out, const RgbPixel &rightHand)
 {
@@ -59,11 +60,13 @@ RgbPixel operator*(RgbPixel leftHand, const RgbPixel &rightHand)
 
 ImageData loadImage(const char *path)
 {
+    using namespace std::string_literals;
     ImageData imgData;
     int channels;
 
     unsigned char *data = stbi_load(path, &imgData.width, &imgData.height, &channels, 3);
-    int size = imgData.width * imgData.height * 3;
+    if (!data) throw std::runtime_error("Unable to load "s + path);
+    int size = imgData.width * imgData.height;
     imgData.pixels.resize(size);
 
     imgData.mean = imgData.std_deviation = {0, 0, 0};
@@ -91,6 +94,8 @@ ImageData loadImage(const char *path)
 
     imgData.std_deviation /= (imgData.width * imgData.height);
 
+    stbi_image_free(data);
+
     return imgData;
 }
 
@@ -109,5 +114,5 @@ void saveImage(const ImageData &data, const char* path) {
     }
     stbi_write_png(path, data.width, data.height, 3, values, 0);
 
-    delete values;
+    delete[] values;
 }

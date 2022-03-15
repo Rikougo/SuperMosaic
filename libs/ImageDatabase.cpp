@@ -81,7 +81,7 @@ namespace
     }
 }
 
-const RgbPixel& ImageBlockView::operator()(int i, int j)
+RgbPixel& ImageBlockView::operator()(int i, int j)
 {
 	return img->pixels[x_start + i + (y_start + j) * img->width];
 }
@@ -89,6 +89,7 @@ const RgbPixel& ImageBlockView::operator()(int i, int j)
 OrderedDirectory::OrderedDirectory(const std::filesystem::path& directory)
     :_files(std::filesystem::directory_iterator(directory), std::filesystem::directory_iterator{})
 {
+    if (!std::filesystem::is_directory(directory)) throw std::invalid_argument("Not a folder");
     std::ranges::sort(_files);
 }
 

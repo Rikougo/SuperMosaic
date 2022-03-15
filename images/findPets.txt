@@ -1,0 +1,2 @@
+https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz
+(delete the .mat files in there!)

@@ -8,10 +8,10 @@
 
 struct ImageBlockView
 {
-	const ImageData* img;
+	ImageData* img;
 	int x_start, y_start;
 	int width, height;
-    const RgbPixel& operator()(int i, int j);
+    RgbPixel& operator()(int i, int j);
 };
 
 constexpr std::size_t ThumbnailSize = 16;
