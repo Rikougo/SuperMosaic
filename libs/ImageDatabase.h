@@ -11,7 +11,7 @@ struct ImageBlockView
 	const ImageData* img;
 	int x_start, y_start;
 	int width, height;
-    RgbPixel operator()(int i, int j);
+    const RgbPixel& operator()(int i, int j);
 };
 
 constexpr std::size_t ThumbnailSize = 16;
@@ -40,6 +40,9 @@ class ImageDatabase
 {
 public:
     ImageDatabase(const std::filesystem::path& db_folder);
+
+    std::size_t findBestEntry(ImageBlockView block) const;
+
 private:
     std::vector<ImageEntry> _entries;
 };

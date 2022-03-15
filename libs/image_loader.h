@@ -22,10 +22,10 @@ struct ImageData
 };
 
 std::ostream &operator<<(std::ostream &out, const RgbPixel &rightHand);
-RgbPixel &operator+=(const RgbPixel &leftHand, const RgbPixel &rightHand);
-RgbPixel &operator-=(const RgbPixel &leftHand, const RgbPixel &rightHand);
-RgbPixel &operator/=(const RgbPixel &leftHand, const float factor);
-RgbPixel &operator*=(const RgbPixel &leftHand, const RgbPixel &rightHand);
+RgbPixel &operator+=(RgbPixel &leftHand, const RgbPixel &rightHand);
+RgbPixel &operator-=(RgbPixel &leftHand, const RgbPixel &rightHand);
+RgbPixel &operator/=(RgbPixel &leftHand, const float factor);
+RgbPixel &operator*=(RgbPixel &leftHand, const RgbPixel &rightHand);
 RgbPixel operator+(RgbPixel leftHand, const RgbPixel &rightHand);
 RgbPixel operator-(RgbPixel leftHand, const RgbPixel &rightHand);
 RgbPixel operator/(RgbPixel leftHand, const float factor);

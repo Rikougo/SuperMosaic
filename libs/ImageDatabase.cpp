@@ -23,13 +23,29 @@ namespace
         output.write(reinterpret_cast<const char*>(data.data()), sizeof(T) * n);
     }
 
-    ImageEntry computeEntry(const std::filesystem::path& file)
+    ImageEntry computeEntry(ImageData img)
     {
-        ImageData img = loadImage(file.string().c_str());
         ImageEntry entry;
         entry.mean = img.mean;
         entry.std_deviation = img.std_deviation;
         stbir_resize_float(&img.pixels[0].r, img.width, img.height, 0, &entry.thumbnail[0].r, ThumbnailSize, ThumbnailSize, 0, 3);
+        return entry;
+    }
+
+    ImageEntry computeEntry(ImageBlockView img)
+    {
+        ImageEntry entry{};
+        for (int j = 0; j < img.height; ++j)
+        {
+            for (int i = 0; i < img.width; ++i)
+            {
+                entry.mean += img(i, j);
+                entry.std_deviation += img(i, j) * img(i, j);
+            }
+        }
+        entry.mean /= img.width * img.height;
+        entry.std_deviation = entry.std_deviation / (img.width * img.height) - entry.mean * entry.mean;
+        stbir_resize_float(&img(0,0).r, img.width, img.height, img.img->width * sizeof(RgbPixel), &entry.thumbnail[0].r, ThumbnailSize, ThumbnailSize, 0, 3);
         return entry;
     }
 
@@ -49,16 +65,23 @@ namespace
         auto entry_it = result.begin();
         for(auto& path : dir)
         {
-            *(entry_it++) = computeEntry(path);
+            *(entry_it++) = computeEntry(loadImage(path.string().c_str()));
         }
         std::ofstream index(index_path, std::ios_base::binary);
         rawVectorStore(index, result);
 
         return result;
     }
+
+    float calcEntriesScore(const ImageEntry& l, const ImageEntry& r)
+    {
+        using std::abs;
+        RgbPixel diff = l.mean - r.mean;
+        return -abs(diff.r) - abs(diff.g) - abs(diff.b);
+    }
 }
 
-RgbPixel ImageBlockView::operator()(int i, int j)
+const RgbPixel& ImageBlockView::operator()(int i, int j)
 {
 	return img->pixels[x_start + i + (y_start + j) * img->width];
 }
@@ -92,4 +115,21 @@ RgbPixel& ImageEntry::operator()(std::size_t i, std::size_t j)
 ImageDatabase::ImageDatabase(const std::filesystem::path& db_folder)
     :_entries(loadEntries(db_folder))
 {
+}
+
+std::size_t ImageDatabase::findBestEntry(ImageBlockView block) const
+{
+    ImageEntry img = computeEntry(block);
+    std::size_t best_i = 0;
+    float best_score = -std::numeric_limits<float>::infinity();
+    for (std::size_t i = 0; i < _entries.size(); ++i)
+    {
+        if (float score = calcEntriesScore(img, _entries[i]); score > best_score)
+        {
+            best_i = i;
+            best_score = score;
+        }
+    }
+
+    return best_i;
 }
