@@ -2,9 +2,11 @@
 #include <iostream>
 #include <vector>
 
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <image_loader.h>
+#include "stb_image_resize.h"
 
 int main()
 {
