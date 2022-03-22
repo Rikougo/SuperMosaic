@@ -136,18 +136,43 @@ RgbPixel &ImageEntry::operator()(std::size_t i, std::size_t j)
 }
 
 ImageDatabase::ImageDatabase(const std::filesystem::path &db_folder)
-    : _entries(loadEntries(db_folder))
+    : _entries(loadEntries(db_folder)), _used(std::make_unique<std::atomic_bool[]>(_entries.size()))
 {
+	for(std::size_t i = 0; i < _entries.size(); ++i) std::atomic_init(&_used[i], false);
 }
 
 std::size_t ImageDatabase::findBestEntry(ImageBlockView block) const
 {
     ImageEntry img = computeEntry(block);
+
+    return doFindBestEntry(img);
+}
+
+std::size_t ImageDatabase::findBestEntryUnique(ImageBlockView block)
+{
+	ImageEntry img = computeEntry(block);
+	std::size_t entry;
+
+	do
+	{
+		entry = doFindBestEntry(img);
+	} while(_used[entry].exchange(true, std::memory_order_relaxed));
+
+	return entry;
+}
+
+std::size_t ImageDatabase::size() const
+{
+	return _entries.size();
+}
+
+std::size_t ImageDatabase::doFindBestEntry(const ImageEntry& img) const
+{
     std::size_t best_i = 0;
     float best_score = -std::numeric_limits<float>::infinity();
     for (std::size_t i = 0; i < _entries.size(); ++i)
     {
-        if (float score = calcEntriesScore(img, _entries[i]); score > best_score)
+        if (float score = calcEntriesScore(img, _entries[i]); score > best_score && !_used[i].load(std::memory_order_relaxed))
         {
             best_i = i;
             best_score = score;

@@ -9,6 +9,7 @@
 #include "stb_image_resize.h"
 #include "ImageDatabase.h"
 #include <chrono>
+#include <execution>
 
 template <typename TP>
 auto lapTime(TP &tp)
@@ -39,19 +40,21 @@ int main(int argc, char *argv[])
     ImageDatabase db(argv[1]);
     std::cout << "Loading db took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
 
-    std::vector<std::size_t> indices(img.height / block_size * img.width / block_size);
+    std::vector<ImageBlockView> blocks(img.height / block_size * img.width / block_size);
     for (int j = 0; j < img.height / block_size; ++j)
     {
         for (int i = 0; i < img.width / block_size; ++i)
         {
-            ImageBlockView block;
+            ImageBlockView& block = blocks[j * img.width / block_size + i];
             block.img = &img;
             block.height = block.width = block_size;
             block.x_start = i * block_size;
             block.y_start = j * block_size;
-            indices[j * img.width / block_size + i] = db.findBestEntry(block);
         }
     }
+    std::vector<std::size_t> indices(blocks.size());
+    std::transform(std::execution::par_unseq, begin(blocks), end(blocks), begin(indices), [&](const auto& block) { return db.findBestEntryUnique(block); });
+
     std::cout << "Finding the best blocks took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
 
     OrderedDirectory dir(argv[1]);

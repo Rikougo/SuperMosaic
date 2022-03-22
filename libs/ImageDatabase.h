@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <vector>
+#include <atomic>
 #include "image_loader.h"
 
 struct ImageBlockView
@@ -42,11 +43,14 @@ public:
     ImageDatabase(const std::filesystem::path& db_folder);
 
     std::size_t findBestEntry(ImageBlockView block) const;
+    std::size_t findBestEntryUnique(ImageBlockView block);
+    std::size_t size() const;
 
 private:
+	std::size_t doFindBestEntry(const ImageEntry& img) const;
     std::vector<ImageEntry> _entries;
+	std::unique_ptr<std::atomic_bool[]> _used;
 };
-
 
 
 #endif
