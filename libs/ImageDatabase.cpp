@@ -5,22 +5,36 @@
 
 namespace
 {
-    template<typename T>
-    std::vector<T> rawVectorLoad(std::ifstream& input)
+    template <typename T>
+    std::vector<T> rawVectorLoad(std::ifstream &input)
     {
         std::size_t n;
-        input.read(reinterpret_cast<char*>(&n), sizeof(n));
+        input.read(reinterpret_cast<char *>(&n), sizeof(n));
         std::vector<T> result(n);
-        input.read(reinterpret_cast<char*>(result.data()), sizeof(T) * n);
+        input.read(reinterpret_cast<char *>(result.data()), sizeof(T) * n);
         return result;
     }
 
-    template<typename T>
-    void rawVectorStore(std::ofstream& output, const std::vector<T>& data)
+    template <typename T>
+    void rawVectorStore(std::ofstream &output, const std::vector<T> &data)
     {
         std::size_t n = data.size();
-        output.write(reinterpret_cast<const char*>(&n), sizeof(n));
-        output.write(reinterpret_cast<const char*>(data.data()), sizeof(T) * n);
+        output.write(reinterpret_cast<const char *>(&n), sizeof(n));
+        output.write(reinterpret_cast<const char *>(data.data()), sizeof(T) * n);
+    }
+
+    float computePSNR(const ImageEntry &l, const ImageEntry &r)
+    {
+        using std::abs;
+        float sum = 0.0f;
+
+        for (size_t i = 0; i < ThumbnailSize * ThumbnailSize; i++)
+        {
+            auto diff = l.thumbnail[i] - r.thumbnail[i];
+            sum += abs(diff.r) + abs(diff.g) + abs(diff.b);
+        }
+
+        return 1.0f / sum;
     }
 
     ImageEntry computeEntry(ImageData img)
@@ -45,16 +59,17 @@ namespace
         }
         entry.mean /= img.width * img.height;
         entry.std_deviation = entry.std_deviation / (img.width * img.height) - entry.mean * entry.mean;
-        stbir_resize_float(&img(0,0).r, img.width, img.height, img.img->width * sizeof(RgbPixel), &entry.thumbnail[0].r, ThumbnailSize, ThumbnailSize, 0, 3);
+        stbir_resize_float(&img(0, 0).r, img.width, img.height, img.img->width * sizeof(RgbPixel), &entry.thumbnail[0].r, ThumbnailSize, ThumbnailSize, 0, 3);
         return entry;
     }
 
-    std::vector<ImageEntry> loadEntries(const std::filesystem::path& db_folder)
+    std::vector<ImageEntry> loadEntries(const std::filesystem::path &db_folder)
     {
         auto index_path = db_folder.lexically_normal();
-        if(!index_path.has_filename()) index_path = index_path.parent_path();
-        index_path+=".imgdb";
-        if(std::filesystem::is_regular_file(index_path))
+        if (!index_path.has_filename())
+            index_path = index_path.parent_path();
+        index_path += ".imgdb";
+        if (std::filesystem::is_regular_file(index_path))
         {
             std::ifstream index(index_path, std::ios_base::binary);
             return rawVectorLoad<ImageEntry>(index);
@@ -63,7 +78,7 @@ namespace
         OrderedDirectory dir(db_folder);
         std::vector<ImageEntry> result(dir.size());
         auto entry_it = result.begin();
-        for(auto& path : dir)
+        for (auto &path : dir)
         {
             *(entry_it++) = computeEntry(loadImage(path.string().c_str()));
         }
@@ -73,23 +88,25 @@ namespace
         return result;
     }
 
-    float calcEntriesScore(const ImageEntry& l, const ImageEntry& r)
+    float calcEntriesScore(const ImageEntry &l, const ImageEntry &r)
     {
-        using std::abs;
+        /*using std::abs;
         RgbPixel diff = l.mean - r.mean;
-        return -abs(diff.r) - abs(diff.g) - abs(diff.b);
+        return -abs(diff.r) - abs(diff.g) - abs(diff.b);*/
+        return computePSNR(l, r);
     }
 }
 
-RgbPixel& ImageBlockView::operator()(int i, int j)
+RgbPixel &ImageBlockView::operator()(int i, int j)
 {
-	return img->pixels[x_start + i + (y_start + j) * img->width];
+    return img->pixels[x_start + i + (y_start + j) * img->width];
 }
 
-OrderedDirectory::OrderedDirectory(const std::filesystem::path& directory)
-    :_files(std::filesystem::directory_iterator(directory), std::filesystem::directory_iterator{})
+OrderedDirectory::OrderedDirectory(const std::filesystem::path &directory)
+    : _files(std::filesystem::directory_iterator(directory), std::filesystem::directory_iterator{})
 {
-    if (!std::filesystem::is_directory(directory)) throw std::invalid_argument("Not a folder");
+    if (!std::filesystem::is_directory(directory))
+        throw std::invalid_argument("Not a folder");
     std::ranges::sort(_files);
 }
 
@@ -98,23 +115,23 @@ std::size_t OrderedDirectory::size() const
     return _files.size();
 }
 
-const std::filesystem::path& OrderedDirectory::operator[](std::size_t i)
+const std::filesystem::path &OrderedDirectory::operator[](std::size_t i)
 {
     return _files[i];
 }
 
-const RgbPixel& ImageEntry::operator()(std::size_t i, std::size_t j) const
+const RgbPixel &ImageEntry::operator()(std::size_t i, std::size_t j) const
 {
     return thumbnail[j * ThumbnailSize + i];
 }
 
-RgbPixel& ImageEntry::operator()(std::size_t i, std::size_t j)
+RgbPixel &ImageEntry::operator()(std::size_t i, std::size_t j)
 {
-    return const_cast<RgbPixel&>(std::as_const(*this)(i,j));
+    return const_cast<RgbPixel &>(std::as_const(*this)(i, j));
 }
 
-ImageDatabase::ImageDatabase(const std::filesystem::path& db_folder)
-    :_entries(loadEntries(db_folder))
+ImageDatabase::ImageDatabase(const std::filesystem::path &db_folder)
+    : _entries(loadEntries(db_folder))
 {
 }
 

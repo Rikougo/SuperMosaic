@@ -1,4 +1,7 @@
 **/build-*
+**/*-build-*
 **/tmp
 build/
 images/pets*
+.vscode/
+.idea/
