@@ -2,6 +2,7 @@
 #include "stb_image_resize.h"
 #include <fstream>
 #include <algorithm>
+#include <execution>
 
 namespace
 {
@@ -78,10 +79,14 @@ namespace
         OrderedDirectory dir(db_folder);
         std::vector<ImageEntry> result(dir.size());
         auto entry_it = result.begin();
-        for (auto &path : dir)
+        /*for (auto &path : dir)
         {
             *(entry_it++) = computeEntry(loadImage(path.string().c_str()));
-        }
+        }*/
+        std::for_each(std::execution::par_unseq, std::begin(dir), std::end(dir), [&](auto &path)
+        {
+            *(entry_it++) = computeEntry(loadImage(path.string().c_str()));
+        });
         std::ofstream index(index_path, std::ios_base::binary);
         rawVectorStore(index, result);
 

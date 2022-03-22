@@ -10,8 +10,8 @@
 #include "ImageDatabase.h"
 #include <chrono>
 
-template<typename TP>
-auto lapTime(TP& tp)
+template <typename TP>
+auto lapTime(TP &tp)
 {
     TP new_tp = TP::clock::now();
     auto d = new_tp - tp;
@@ -19,26 +19,25 @@ auto lapTime(TP& tp)
     return d;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    if(argc != 5)
+    if (argc != 6)
     {
-        std::cout << "Usage : " << argv[0] << " imgIn inBlockSize outBlockSize imgOut" << std::endl;
+        std::cout << "Usage : " << argv[0] << "db imgIn inBlockSize outBlockSize imgOut" << std::endl;
         return -1;
     }
-    ImageData img = loadImage(argv[1]);
-    int block_size = atoi(argv[2]);
-    int mosaic_block_size = atoi(argv[3]);
-    if(img.width % block_size || img.height % block_size)
+    ImageData img = loadImage(argv[2]);
+    int block_size = atoi(argv[3]);
+    int mosaic_block_size = atoi(argv[4]);
+    if (img.width % block_size || img.height % block_size)
     {
         std::cout << "Use an image whose size is a multiple of the block size!" << std::endl;
         return -1;
     }
 
     auto tp = std::chrono::high_resolution_clock::now();
-    ImageDatabase db("../images/pets");
+    ImageDatabase db(argv[1]);
     std::cout << "Loading db took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
-
 
     std::vector<std::size_t> indices(img.height / block_size * img.width / block_size);
     for (int j = 0; j < img.height / block_size; ++j)
@@ -55,7 +54,7 @@ int main(int argc, char* argv[])
     }
     std::cout << "Finding the best blocks took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
 
-    OrderedDirectory dir("../images/pets");
+    OrderedDirectory dir(argv[1]);
     ImageData mosaic;
     mosaic.height = img.height / block_size * mosaic_block_size;
     mosaic.width = img.width / block_size * mosaic_block_size;
@@ -70,12 +69,12 @@ int main(int argc, char* argv[])
             block.x_start = i * mosaic_block_size;
             block.y_start = j * mosaic_block_size;
             ImageData tile = loadImage(dir[indices[j * img.width / block_size + i]].string().c_str());
-            stbir_resize_float(&tile.pixels[0].r, tile.width, tile.height, 0, &block(0,0).r, block.width, block.height, block.img->width * sizeof(RgbPixel), 3);
+            stbir_resize_float(&tile.pixels[0].r, tile.width, tile.height, 0, &block(0, 0).r, block.width, block.height, block.img->width * sizeof(RgbPixel), 3);
         }
     }
     std::cout << "Building the mosaic took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
 
-    saveImage(mosaic, argv[4]);
+    saveImage(mosaic, argv[5]);
 
     return EXIT_SUCCESS;
 }
