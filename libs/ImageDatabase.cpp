@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <execution>
 
+extern "C" void cudaSelectEntries(RgbPixel* pixels, int height, int width, ImageEntry* entries, std::size_t n_entries, std::size_t* blocks, int block_size);
+
 namespace
 {
     template <typename T>
