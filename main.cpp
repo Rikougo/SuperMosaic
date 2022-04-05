@@ -10,6 +10,7 @@
 #include "ImageDatabase.h"
 #include <chrono>
 #include <execution>
+#include <future>
 
 template <typename TP>
 auto lapTime(TP &tp)
@@ -62,19 +63,24 @@ int main(int argc, char *argv[])
     mosaic.height = img.height / block_size * mosaic_block_size;
     mosaic.width = img.width / block_size * mosaic_block_size;
     mosaic.pixels.resize((std::size_t)mosaic.height * mosaic.width);
+    std::vector<std::future<void>> tasks;
+    tasks.reserve(img.height / block_size * img.width / block_size);
     for (int j = 0; j < img.height / block_size; ++j)
     {
         for (int i = 0; i < img.width / block_size; ++i)
         {
-            ImageBlockView block;
-            block.img = &mosaic;
-            block.height = block.width = mosaic_block_size;
-            block.x_start = i * mosaic_block_size;
-            block.y_start = j * mosaic_block_size;
-            ImageData tile = loadImage(dir[indices[j * img.width / block_size + i]].string().c_str());
-            stbir_resize_float(&tile.pixels[0].r, tile.width, tile.height, 0, &block(0, 0).r, block.width, block.height, block.img->width * sizeof(RgbPixel), 3);
+            tasks.emplace_back(std::async(std::launch::async, [&,i,j](){
+                ImageBlockView block;
+                block.img = &mosaic;
+                block.height = block.width = mosaic_block_size;
+                block.x_start = i * mosaic_block_size;
+                block.y_start = j * mosaic_block_size;
+                ImageData tile = loadImage(dir[indices[j * img.width / block_size + i]].string().c_str());
+                stbir_resize_float(&tile.pixels[0].r, tile.width, tile.height, 0, &block(0, 0).r, block.width, block.height, block.img->width * sizeof(RgbPixel), 3);
+            }));
         }
     }
+    tasks.clear(); //Calls async future destructors, waiting for end of tasks
     std::cout << "Building the mosaic took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
 
     saveImage(mosaic, argv[5]);
