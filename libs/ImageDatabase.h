@@ -42,6 +42,7 @@ class ImageDatabase
 public:
     ImageDatabase(const std::filesystem::path& db_folder);
 
+    std::vector<std::size_t> findAllEntries(const ImageData& img, int block_size);
     std::size_t findBestEntry(ImageBlockView block) const;
     std::size_t findBestEntryUnique(ImageBlockView block);
     std::size_t size() const;

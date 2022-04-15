@@ -1,10 +1,13 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.18)
 
-project(SuperMosaic DESCRIPTION "Super mosaic" LANGUAGES CXX)
+set(CMAKE_CUDA_ARCHITECTURES 70)
 
+project(SuperMosaic DESCRIPTION "Super mosaic" LANGUAGES CXX CUDA)
+
+add_library(cudaFuncs STATIC ./libs/cuda/cudaSelect.cu)
 add_executable(main main.cpp ./libs/image_loader.cpp ./libs/image_loader.h ./libs/ImageDatabase.cpp ./libs/ImageDatabase.h)
 find_package( Threads )
-target_link_libraries( main ${CMAKE_THREAD_LIBS_INIT} )
+target_link_libraries( main cudaFuncs ${CMAKE_THREAD_LIBS_INIT} )
 
 set_target_properties(main
     PROPERTIES

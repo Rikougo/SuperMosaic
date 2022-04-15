@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
     ImageDatabase db(argv[1]);
     std::cout << "Loading db took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
 
+    /*
     std::vector<ImageBlockView> blocks(img.height / block_size * img.width / block_size);
     for (int j = 0; j < img.height / block_size; ++j)
     {
@@ -55,6 +56,9 @@ int main(int argc, char *argv[])
     }
     std::vector<std::size_t> indices(blocks.size());
     std::transform(std::execution::par_unseq, begin(blocks), end(blocks), begin(indices), [&](const auto& block) { return db.findBestEntryUnique(block); });
+    /*/
+    auto indices = db.findAllEntries(img, block_size);
+    //*/
 
     std::cout << "Finding the best blocks took " << std::chrono::duration<float>(lapTime(tp)).count() << "s" << std::endl;
 

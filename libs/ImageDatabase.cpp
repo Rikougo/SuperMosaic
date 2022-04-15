@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <execution>
 
-extern "C" void cudaSelectEntries(RgbPixel* pixels, int height, int width, ImageEntry* entries, std::size_t n_entries, std::size_t* blocks, int block_size);
+extern "C" void cudaSelectEntries(const RgbPixel* pixels, int height, int width, ImageEntry* entries, std::size_t n_entries, std::size_t* blocks, int block_size);
 
 namespace
 {
@@ -139,6 +139,15 @@ ImageDatabase::ImageDatabase(const std::filesystem::path &db_folder)
     : _entries(loadEntries(db_folder)), _used(std::make_unique<std::atomic_bool[]>(_entries.size()))
 {
 	for(std::size_t i = 0; i < _entries.size(); ++i) std::atomic_init(&_used[i], false);
+}
+
+std::vector<std::size_t> ImageDatabase::findAllEntries(const ImageData& img, int block_size)
+{
+    std::vector<std::size_t> result(img.height / block_size * img.width / block_size);
+
+    cudaSelectEntries(img.pixels.data(), img.height, img.width, _entries.data(), _entries.size(), result.data(), block_size);
+
+    return result;
 }
 
 std::size_t ImageDatabase::findBestEntry(ImageBlockView block) const

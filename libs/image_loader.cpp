@@ -65,7 +65,11 @@ ImageData loadImage(const char *path)
     int channels;
 
     unsigned char *data = stbi_load(path, &imgData.width, &imgData.height, &channels, 3);
-    if (!data) throw std::runtime_error("Unable to load "s + path);
+    if (!data)
+    {
+        std::cerr << "Error : " << stbi_failure_reason() << ' ' << errno << std::endl;
+        throw std::runtime_error("Unable to load "s + path);
+    }
     int size = imgData.width * imgData.height;
     imgData.pixels.resize(size);
 
