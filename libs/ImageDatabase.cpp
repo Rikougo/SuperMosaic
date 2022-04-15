@@ -66,6 +66,8 @@ namespace
 
     std::vector<ImageEntry> loadEntries(const std::filesystem::path &db_folder)
     {
+        using std::begin, std::end;
+
         auto index_path = db_folder.lexically_normal();
         if (!index_path.has_filename())
             index_path = index_path.parent_path();
@@ -79,13 +81,9 @@ namespace
         OrderedDirectory dir(db_folder);
         std::vector<ImageEntry> result(dir.size());
         auto entry_it = result.begin();
-        /*for (auto &path : dir)
+        std::transform(std::execution::par_unseq, begin(dir), end(dir), begin(result), [&](auto& path)
         {
-            *(entry_it++) = computeEntry(loadImage(path.string().c_str()));
-        }*/
-        std::for_each(std::execution::par_unseq, std::begin(dir), std::end(dir), [&](auto &path)
-        {
-            *(entry_it++) = computeEntry(loadImage(path.string().c_str()));
+            return computeEntry(loadImage(path.string().c_str()));
         });
         std::ofstream index(index_path, std::ios_base::binary);
         rawVectorStore(index, result);
