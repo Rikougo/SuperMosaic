@@ -1,5 +1,6 @@
 #include <image_loader.h>
 #include <string>
+#include <thread>
 
 std::ostream &operator<<(std::ostream &out, const RgbPixel &rightHand)
 {
@@ -64,11 +65,12 @@ ImageData loadImage(const char *path)
     ImageData imgData;
     int channels;
 
-    unsigned char *data = stbi_load(path, &imgData.width, &imgData.height, &channels, 3);
-    if (!data)
+    unsigned char* data = nullptr;
+    while(true)
     {
-        std::cerr << "Error : " << stbi_failure_reason() << ' ' << errno << std::endl;
-        throw std::runtime_error("Unable to load "s + path);
+        data = stbi_load(path, &imgData.width, &imgData.height, &channels, 3);
+        if (data) break;
+        std::this_thread::yield();
     }
     int size = imgData.width * imgData.height;
     imgData.pixels.resize(size);
