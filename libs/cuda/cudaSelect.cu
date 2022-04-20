@@ -39,88 +39,95 @@ __device__ float sqrPixelDiff(RgbPixel l, RgbPixel r)
     return (l.r - r.r) * (l.r - r.r) + (l.g - r.g) * (l.g - r.g) + (l.b - r.b) * (l.b - r.b);
 }
 
-__global__ void deviceSelectEntries(RgbPixel* pixels, int height, int width, ImageEntry* entries, unsigned* entries_usage, std::size_t n_entries, std::size_t* blocks, int block_size)
+__global__ void deviceCalcScoreMatrix(RgbPixel* pixels, int height, int width, ImageEntry* entries, std::size_t n_entries, int block_size, float* matrix)
 {
-	//__shared__ RgbPixel block_thumbnail[blockDim.x*blockDim.y];
-    __shared__ float sum;
-    __shared__ std::size_t best_entry;
-    __shared__ float best_score;
+    std::size_t x_blocks = width / block_size;
+    std::size_t y_blocks = height / block_size;
+    std::size_t n_blocks = x_blocks * y_blocks;
+    std::size_t block_id = threadIdx.x + blockDim.x * blockIdx.x;
+    std::size_t entry_id = threadIdx.y + blockDim.y * blockIdx.y;
+    if (block_id >= n_blocks || entry_id >= n_entries) return;
 
-	int thumbnailIndex = threadIdx.y * blockDim.x + threadIdx.x;
-	float u_coord = (float)threadIdx.x / blockDim.x * block_size + block_size * blockIdx.x;
-	float v_coord = (float)threadIdx.y / blockDim.y * block_size + block_size * blockIdx.y;
-	//block_thumbnail[thumbnailIndex] = sampleLinear(pixels, height, width, u_coord, v_coord);
-    RgbPixel pixel = sampleLinear(pixels, height, width, u_coord, v_coord);
+    std::size_t block_x = block_id % x_blocks;
+    std::size_t block_y = block_id / x_blocks;
 
-    if (thumbnailIndex == 0)
+    ImageEntry entry = entries[entry_id];
+    float sum = 0;
+    for (int j = 0; j < ThumbnailSize; ++j)
     {
-        sum = 0;
-        best_entry = n_entries;
-        best_score = 0;
-    }
-
-	__syncthreads();
-    
-    while(best_entry == n_entries)
-    {
-        for(std::size_t i = 0; i < n_entries; ++i)
+        float v_coord = (float)j / ThumbnailSize * block_size + block_size * block_y;
+        for (int i = 0; i < ThumbnailSize; ++i)
         {
-            atomicAdd_block(&sum, sqrPixelDiff(pixel, entries[i].thumbnail[thumbnailIndex]));
-            __syncthreads();
-            if(thumbnailIndex == 0)
-            {
-                float score = 1.0f/sum;
-                if(score > best_score && entries_usage[i] == 0)
-                {
-                    best_entry = i;
-                    best_score = score;
-                }
-                sum = 0;
-            }
-            __syncthreads();
+            float u_coord = (float)i / ThumbnailSize * block_size + block_size * block_x;
+            RgbPixel pixel = sampleLinear(pixels, height, width, u_coord, v_coord);
+            sum += sqrPixelDiff(pixel, entry.thumbnail[i + j * ThumbnailSize]);
         }
-        if(thumbnailIndex == 0)
+    }
+    matrix[entry_id + block_id * n_entries] = 1.0f / sum;
+}
+
+__global__ void deviceSelectEntries(float* matrix, unsigned* entries_usage, std::size_t n_entries, std::size_t* blocks, std::size_t n_blocks)
+{
+    std::size_t block_id = threadIdx.x + blockDim.x * blockIdx.x;
+    if (block_id >= n_blocks) return;
+
+    std::size_t best_entry = n_entries;
+    float best_score = 0;
+
+    while (best_entry == n_entries)
+    {
+        for (std::size_t i = 0; i < n_entries; ++i)
         {
-            if(atomicExch(&entries_usage[best_entry], 1) == 1)
+            float score = matrix[i + block_id * n_entries];
+            if (score > best_score && entries_usage[i] == 0)
             {
-                best_entry = n_entries;
-                best_score = 0;
+                best_entry = i;
+                best_score = score;
             }
         }
-        __syncthreads();
+        if (atomicExch(&entries_usage[best_entry], 1) == 1)
+        {
+            best_entry = n_entries;
+            best_score = 0;
+        }
     }
-    
-    if(thumbnailIndex == 0)
-    {
-        blocks[blockIdx.y * gridDim.x + blockIdx.x] = best_entry;
-    }
+    blocks[block_id] = best_entry;
 }
 
 extern "C" void cudaSelectEntries(const RgbPixel* pixels, int height, int width, ImageEntry* entries, std::size_t n_entries, std::size_t* blocks, int block_size)
 {
-    int x_blocks = width / block_size;
-    int y_blocks = height / block_size;
-    
+    std::size_t x_blocks = width / block_size;
+    std::size_t y_blocks = height / block_size;
+    std::size_t n_blocks = x_blocks * y_blocks;
+
     RgbPixel* dpixels;
     ImageEntry* dentries;
     unsigned* dentries_usage;
     std::size_t* dblocks;
-    
-    cudaMalloc(&dpixels, height*width*sizeof(RgbPixel));
-    cudaMemcpy(dpixels, pixels, height*width*sizeof(RgbPixel), cudaMemcpyHostToDevice);
-    cudaMalloc(&dentries, n_entries*sizeof(ImageEntry));
-    cudaMemcpy(dentries, entries, n_entries*sizeof(ImageEntry), cudaMemcpyHostToDevice);
-    cudaMalloc(&dentries_usage, n_entries*sizeof(unsigned));
-    cudaMemset(dentries_usage, 0, n_entries*sizeof(unsigned));
-    cudaMalloc(&dblocks, x_blocks*y_blocks*sizeof(std::size_t));
-    
-    dim3 block_dim(ThumbnailSize,ThumbnailSize,1);
-    dim3 grid_dim(x_blocks,y_blocks,1);
-    deviceSelectEntries<<<grid_dim, block_dim>>>(dpixels, height, width, dentries, dentries_usage, n_entries, dblocks, block_size);
-    cudaMemcpy(blocks, dblocks, x_blocks*y_blocks*sizeof(std::size_t), cudaMemcpyDeviceToHost);
+    float* dmatrix;
+
+    cudaMalloc(&dpixels, height * width * sizeof(RgbPixel));
+    cudaMemcpy(dpixels, pixels, height * width * sizeof(RgbPixel), cudaMemcpyHostToDevice);
+    cudaMalloc(&dentries, n_entries * sizeof(ImageEntry));
+    cudaMemcpy(dentries, entries, n_entries * sizeof(ImageEntry), cudaMemcpyHostToDevice);
+    cudaMalloc(&dentries_usage, n_entries * sizeof(unsigned));
+    cudaMemset(dentries_usage, 0, n_entries * sizeof(unsigned));
+    cudaMalloc(&dmatrix, n_blocks * n_entries * sizeof(float));
+    cudaMalloc(&dblocks, n_blocks * sizeof(std::size_t));
+
+    dim3 block_dim(16, 16, 1);
+    dim3 grid_dim((n_blocks + 15) / 16, (n_entries + 15) / 16, 1);
+    deviceCalcScoreMatrix<<<grid_dim, block_dim>>>(dpixels, height, width, dentries, n_entries, block_size, dmatrix);
+    dim3 block_dim2(16, 1, 1);
+    dim3 grid_dim2((n_blocks + 15) / 16, 1, 1);
+    deviceSelectEntries<<<grid_dim2, block_dim2>>>(dmatrix, dentries_usage, n_entries, dblocks, n_blocks);
+
+    cudaMemcpy(blocks, dblocks, n_blocks * sizeof(std::size_t), cudaMemcpyDeviceToHost);
 
     cudaFree(dpixels);
     cudaFree(dentries);
     cudaFree(dentries_usage);
     cudaFree(dblocks);
+    cudaFree(dmatrix);
+    //*/
 }
